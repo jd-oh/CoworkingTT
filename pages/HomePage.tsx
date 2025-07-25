@@ -12,7 +12,7 @@ interface HomePageProps {
   user: User | null;
 }
 
-const HomePage: React.FC<HomePageProps> = ({ user }) => {
+const HomePage: React.FC<HomePageProps> = ({ user: _user }) => {
   const [spaces, setSpaces] = useState<CoworkingSpace[]>([]);
   const [filteredSpaces, setFilteredSpaces] = useState<CoworkingSpace[]>([]);
   const [isLoading, setIsLoading] = useState(true);

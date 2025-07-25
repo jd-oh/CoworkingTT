@@ -40,7 +40,7 @@ export const getStructuredSearchQuery = async (prompt: string): Promise<ParsedSe
         }
     });
     
-    const responseText = result.text.trim();
+    const responseText = (result as any).text?.trim() ?? "";
     if (!responseText) {
         console.error("Gemini API returned an empty response.");
         return {};
