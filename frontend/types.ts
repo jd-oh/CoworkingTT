@@ -1,10 +1,12 @@
 import React from 'react';
 
 export interface User {
-  id: string;
+  id: number;
   name: string;
   email: string;
-  role: 'user' | 'admin';
+  role: 'admin' | 'empresa' | 'freelancer';
+  company?: string;
+  phone?: string;
 }
 
 export interface Amenity {
@@ -26,11 +28,15 @@ export interface CoworkingSpace {
 }
 
 export interface Booking {
-  id: string;
-  spaceId: string;
-  userId: string;
+  id: number;
+  spaceId: number;
+  userId: number;
   date: string;
   status: 'confirmed' | 'pending';
+  spaceName?: string;
+  userName?: string;
+  address?: string;
+  pricePerDay?: number;
 }
 
 export interface AdminStat {

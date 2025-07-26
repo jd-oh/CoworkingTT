@@ -1,108 +1,139 @@
-// Simple Express backend for coworking app
+// Express backend for coworking app with SQLite database
 import express from 'express';
 import cors from 'cors';
+import { initDatabase, dbOperations } from './database.js';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 app.use(cors());
 app.use(express.json());
 
-// Mock data (replace with database integration in production)
-const spaces = [
-  {
-    id: '1',
-    name: 'Innova Coworking Center',
-    city: 'Madrid',
-    address: 'Calle Gran Vía, 123',
-    pricePerDay: 25,
-    rating: 4.8,
-    imageUrl: 'https://picsum.photos/seed/madrid1/600/400',
-    amenities: ['wifi', 'cafe', 'sala-reuniones'],
-    description: 'Un espacio moderno y vibrante en el corazón de Madrid, perfecto para startups y freelancers.'
-  },
-  {
-    id: '2',
-    name: 'BCN Hub Creativo',
-    city: 'Barcelona',
-    address: 'Passeig de Gràcia, 45',
-    pricePerDay: 30,
-    rating: 4.9,
-    imageUrl: 'https://picsum.photos/seed/bcn1/600/400',
-    amenities: ['wifi', 'cafe', 'acceso-24-7'],
-    description: 'Fomenta tu creatividad en nuestro hub de Barcelona, con acceso ininterrumpido y una comunidad increíble.'
-  },
-  {
-    id: '3',
-    name: 'Valencia Tech Place',
-    city: 'Valencia',
-    address: 'Avenida del Puerto, 78',
-    pricePerDay: 22,
-    rating: 4.7,
-    imageUrl: 'https://picsum.photos/seed/valencia1/600/400',
-    amenities: ['wifi', 'cafe', 'parking'],
-    description: 'El punto de encuentro para la tecnología en Valencia. Ofrecemos instalaciones de primera y parking gratuito.'
-  },
-  {
-    id: '4',
-    name: 'Madrid Connect',
-    city: 'Madrid',
-    address: 'Calle de Alcalá, 200',
-    pricePerDay: 28,
-    rating: 4.6,
-    imageUrl: 'https://picsum.photos/seed/madrid2/600/400',
-    amenities: ['wifi', 'cafe', 'escritorio-de-pie'],
-    description: 'Espacio de trabajo ergonómico y bien conectado en una de las zonas más emblemáticas de Madrid.'
-  }
-];
+// Initialize database on startup
+await initDatabase();
+console.log('Database initialized successfully');
 
-const bookings = [];
-
-// Helper to filter spaces
-function filterSpaces(city, amenities) {
-  let result = spaces;
-  if (city) {
-    result = result.filter(s => s.city.toLowerCase() === city.toLowerCase());
+// Public endpoints - Get spaces with optional filters
+app.get('/api/spaces', async (req, res) => {
+  try {
+    const { city, amenities } = req.query;
+    const amenityList = typeof amenities === 'string' ? amenities.split(',') : undefined;
+    const spaces = await dbOperations.getSpaces(city, amenityList);
+    res.json(spaces);
+  } catch (error) {
+    console.error('Error fetching spaces:', error);
+    res.status(500).json({ message: 'Error fetching spaces' });
   }
-  if (amenities && amenities.length > 0) {
-    result = result.filter(s => amenities.every(a => s.amenities.includes(a)));
-  }
-  return result;
-}
-
-// Public endpoints
-app.get('/api/spaces', (req, res) => {
-  const { city, amenities } = req.query;
-  const amenityList = typeof amenities === 'string' ? amenities.split(',') : undefined;
-  res.json(filterSpaces(city, amenityList));
 });
 
-app.post('/api/bookings', (req, res) => {
-  const { spaceId, userId, date } = req.body;
-  if (!spaceId || !userId || !date) {
-    return res.status(400).json({ message: 'spaceId, userId and date are required' });
+// Authentication endpoints
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    const user = await dbOperations.getUserByEmail(email);
+    if (!user || user.password !== password) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    // Don't send password in response
+    const { password: _, ...userWithoutPassword } = user;
+    res.json(userWithoutPassword);
+  } catch (error) {
+    console.error('Error during login:', error);
+    res.status(500).json({ message: 'Error during login' });
   }
-  const booking = { id: String(bookings.length + 1), spaceId, userId, date, status: 'pending' };
-  bookings.push(booking);
-  res.status(201).json(booking);
 });
 
-// Admin endpoints
-app.get('/api/admin/stats', (req, res) => {
-  res.json([
-    { label: 'Ingresos Totales (Mes)', value: '€12,450', change: '+15.2%', changeType: 'increase' },
-    { label: 'Reservas Activas', value: String(bookings.length), change: '+5', changeType: 'increase' },
-    { label: 'Nuevos Usuarios', value: '45', change: '-3.1%', changeType: 'decrease' },
-    { label: 'Ocupación Media', value: '78%', change: '+2.5%', changeType: 'increase' }
-  ]);
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const userData = req.body;
+    const existingUser = await dbOperations.getUserByEmail(userData.email);
+    
+    if (existingUser) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
+
+    const newUser = await dbOperations.createUser(userData);
+    const { password: _, ...userWithoutPassword } = newUser;
+    res.status(201).json(userWithoutPassword);
+  } catch (error) {
+    console.error('Error during registration:', error);
+    res.status(500).json({ message: 'Error during registration' });
+  }
 });
 
-app.get('/api/admin/bookings/recent', (req, res) => {
-  const recent = bookings.slice(-5).map(b => {
-    const space = spaces.find(s => s.id === b.spaceId);
-    return { ...b, spaceName: space ? space.name : '', userName: `User ${b.userId}` };
-  });
-  res.json(recent);
+// Create a new booking
+app.post('/api/bookings', async (req, res) => {
+  try {
+    const { spaceId, userId, date } = req.body;
+    if (!spaceId || !userId || !date) {
+      return res.status(400).json({ message: 'spaceId, userId and date are required' });
+    }
+    
+    const booking = await dbOperations.createBooking(spaceId, userId, date);
+    res.status(201).json(booking);
+  } catch (error) {
+    console.error('Error creating booking:', error);
+    res.status(500).json({ message: 'Error creating booking' });
+  }
+});
+
+// Get user's bookings
+app.get('/api/bookings/user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const bookings = await dbOperations.getBookingsByUser(userId);
+    res.json(bookings);
+  } catch (error) {
+    console.error('Error fetching user bookings:', error);
+    res.status(500).json({ message: 'Error fetching bookings' });
+  }
+});
+
+// Add a new space (admin endpoint)
+app.post('/api/admin/spaces', async (req, res) => {
+  try {
+    const spaceData = req.body;
+    const newSpace = await dbOperations.addSpace(spaceData);
+    res.status(201).json(newSpace);
+  } catch (error) {
+    console.error('Error adding space:', error);
+    res.status(500).json({ message: 'Error adding space' });
+  }
+});
+
+// Admin endpoints - Get statistics
+app.get('/api/admin/stats', async (req, res) => {
+  try {
+    const bookings = await dbOperations.getBookings();
+    const totalBookings = bookings.length;
+    const activeBookings = bookings.filter(b => b.status === 'pending' || b.status === 'confirmed').length;
+    
+    res.json([
+      { label: 'Ingresos Totales (Mes)', value: '€12,450', change: '+15.2%', changeType: 'increase' },
+      { label: 'Reservas Activas', value: String(activeBookings), change: '+5', changeType: 'increase' },
+      { label: 'Nuevos Usuarios', value: '45', change: '-3.1%', changeType: 'decrease' },
+      { label: 'Ocupación Media', value: '78%', change: '+2.5%', changeType: 'increase' }
+    ]);
+  } catch (error) {
+    console.error('Error fetching stats:', error);
+    res.status(500).json({ message: 'Error fetching statistics' });
+  }
+});
+
+// Get recent bookings
+app.get('/api/admin/bookings/recent', async (req, res) => {
+  try {
+    const recentBookings = await dbOperations.getRecentBookings(5);
+    res.json(recentBookings);
+  } catch (error) {
+    console.error('Error fetching recent bookings:', error);
+    res.status(500).json({ message: 'Error fetching recent bookings' });
+  }
 });
 
 app.listen(PORT, () => {

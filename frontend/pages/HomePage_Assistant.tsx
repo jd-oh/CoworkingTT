@@ -78,32 +78,9 @@ const HomePage: React.FC<HomePageProps> = ({ user }) => {
       return;
     }
 
-    console.log("Looking for space:", spaceName);
-    console.log("Available spaces:", spaces.map(s => s.name));
-    
-    // First try exact match (case insensitive)
-    let space = spaces.find(s => 
-      s.name.toLowerCase() === spaceName.toLowerCase()
+    const space = spaces.find(s => 
+      s.name.toLowerCase().includes(spaceName.toLowerCase())
     );
-    
-    // If no exact match, try partial match
-    if (!space) {
-      space = spaces.find(s => 
-        s.name.toLowerCase().includes(spaceName.toLowerCase()) ||
-        spaceName.toLowerCase().includes(s.name.toLowerCase())
-      );
-    }
-    
-    // If still no match, try even more flexible matching
-    if (!space) {
-      const cleanSpaceName = spaceName.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
-      space = spaces.find(s => {
-        const cleanName = s.name.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
-        return cleanName.includes(cleanSpaceName) || cleanSpaceName.includes(cleanName);
-      });
-    }
-    
-    console.log("Found space:", space?.name || "Not found");
     
     if (!space) {
       setAssistantResponse({

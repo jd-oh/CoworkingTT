@@ -28,6 +28,61 @@ export const searchSpaces = async (city?: string, amenities?: string[]): Promise
   return data.map(space => ({ ...space, amenities: parseAmenities(space.amenities) }));
 };
 
+// Authentication services
+export const login = async (email: string, password: string) => {
+  const res = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+  
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.message || 'Login failed');
+  }
+  
+  return res.json();
+};
+
+export const register = async (userData: any) => {
+  const res = await fetch('/api/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(userData)
+  });
+  
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.message || 'Registration failed');
+  }
+  
+  return res.json();
+};
+
+// Booking services
+export const createBooking = async (spaceId: string, userId: number, date: string) => {
+  const res = await fetch('/api/bookings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ spaceId, userId, date })
+  });
+  
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.message || 'Booking failed');
+  }
+  
+  return res.json();
+};
+
+export const getUserBookings = async (userId: number) => {
+  const res = await fetch(`/api/bookings/user/${userId}`);
+  if (!res.ok) {
+    throw new Error('Failed to fetch user bookings');
+  }
+  return res.json();
+};
+
 export const getAdminStats = async (): Promise<AdminStat[]> => {
   const res = await fetch('/api/admin/stats');
   if (!res.ok) {
